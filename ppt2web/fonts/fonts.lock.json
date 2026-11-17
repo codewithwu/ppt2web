@@ -1,0 +1,50 @@
+{
+  "families": {
+    "Carlito": {
+      "package": "@fontsource/carlito",
+      "sameOrigin": false,
+      "status": "ok",
+      "version": "5.3.0",
+      "license": "OFL-1.1",
+      "faces": 28,
+      "bytes": 803072
+    },
+    "Arimo": {
+      "package": "@fontsource/arimo",
+      "sameOrigin": false,
+      "status": "ok",
+      "version": "5.3.0",
+      "license": "OFL-1.1",
+      "faces": 32,
+      "bytes": 502280
+    },
+    "Monoton": {
+      "package": "@fontsource/monoton",
+      "sameOrigin": false,
+      "status": "ok",
+      "version": "5.3.0",
+      "license": "OFL-1.1",
+      "faces": 2,
+      "bytes": 24272
+    },
+    "Noto Sans SC": {
+      "package": "@fontsource-variable/noto-sans-sc",
+      "sameOrigin": true,
+      "status": "ok",
+      "version": "5.3.1",
+      "license": "OFL-1.1",
+      "faces": 101,
+      "bytes": 4500544
+    },
+    "Noto Serif SC": {
+      "package": "@fontsource-variable/noto-serif-sc",
+      "sameOrigin": true,
+      "status": "ok",
+      "version": "5.3.1",
+      "license": "OFL-1.1",
+      "faces": 101,
+      "bytes": 6030988
+    }
+  },
+  "totalBytes": 11861156
+}

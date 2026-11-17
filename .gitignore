@@ -1,0 +1,37 @@
+# Python 虚拟环境（uv 创建，含 torch，约 800MB）
+.venv/
+
+# HyperFrames 本地媒体缓存与产物
+.hyperframes/
+*.mp4
+*.wav
+*.mp3
+
+# 工具缓存
+.cache/
+.thumbnails/
+__pycache__/
+
+# 归档项目里的成片与音频不入库（*.mp4 / *.wav / *.mp3 已覆盖）
+archive/**/out.mp4
+
+# ppt2web 转换产物
+out/
+/out/
+out_v2/
+out2/
+out*/
+*.pdf
+
+# ppt2web 的测试样本（第三方模板，不入库）
+*.pptx
+
+# Python 构建产物
+*.egg-info/
+build/
+dist/
+
+# 用户自放的商用字体（不进版本库：授权不随仓库分发）
+# 例外：目录里的说明文档要进仓库
+ppt2web/fonts/local/*
+!ppt2web/fonts/local/README.md

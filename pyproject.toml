@@ -1,0 +1,67 @@
+[project]
+name = "ppt2web"
+version = "0.1.0"
+description = "把 PPTX 转成可在浏览器里放映的自包含网页"
+readme = "ppt2web/README.md"
+requires-python = ">=3.12"
+# 刻意零运行时依赖：只用标准库解析 OOXML，用户不需要 pip install
+dependencies = []
+
+[project.optional-dependencies]
+# 文字矢量化（--text vector，默认模式）：抽取字形轮廓，需要 fontTools
+# brotli 由 fontTools 用于 woff2 压缩，这里显式列出便于安装
+text-vector = [
+    "fonttools>=4.68",
+    "brotli>=1.2",
+]
+# 媒体栈：Kokoro TTS（本地语音合成）+ MusicGen BGM
+# torch 用 CPU 版，避免拉 ~2GB CUDA 依赖
+media = [
+    "torch>=2.15",
+    "transformers>=5.22",
+    "kokoro-onnx>=0.6",
+    "soundfile>=0.14",
+    "numpy>=2.5",
+    "onnxruntime>=1.31",
+]
+# 视觉比对（--visual-diff）：LibreOffice 渲原稿 + Pillow 做像素 diff
+visual = [
+    "pillow>=11",
+    "pymupdf>=1.26",
+]
+
+[dependency-groups]
+# 测试只用标准库 unittest，不额外引入依赖；这里带上矢量化、视觉比对两档以便跑全量测试
+dev = [
+    "ppt2web[text-vector,visual]",
+]
+
+[project.scripts]
+ppt2web = "ppt2web.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["ppt2web", "ppt2web.parse", "ppt2web.render"]
+
+[tool.setuptools.package-data]
+ppt2web = ["runtime/*.js"]
+
+# torch 走 PyTorch 官方 CPU 轮子索引：PyPI 上的 linux torch 默认带 CUDA，
+# 会多拉 ~2GB nvidia-* 包。pip 用户需自己加
+# --extra-index-url https://download.pytorch.org/whl/cpu
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+# 默认源换成清华镜像：官方 PyPI 慢 100 倍
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+ppt2web = { workspace = true }
