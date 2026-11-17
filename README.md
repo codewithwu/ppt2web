@@ -9,6 +9,7 @@ pptx  ──►  ppt2web convert  ──►  out/index.html  ──►  双击�
 - **图片无损** —— 嵌入位图字节级原样落盘，不做任何重编码；原生 SVG 保持矢量
 - **内容不丢** —— 文本、表格、图表、图形、图片、主题色全部还原；验收有逐字符断言
 - **动画保留** —— 直接解释 PPT 的动画行为树（不是"预设近似"），时机/对象/方向/时长/顺序都对
+- **转场与音频照做** —— 页面转场（含自动翻页时序）和媒体播放按源文件行为还原，不是留空
 - **文字矢量化** —— 默认把文字转成字形轮廓：不依赖任何字体、不依赖观看者环境、版式自己算
 - **产物零依赖** —— 转换出来的网页包不联网、不引外部 JS/CSS/字体，双击 `file://` 就能放映
 
@@ -20,9 +21,10 @@ pptx  ──►  ppt2web convert  ──►  out/index.html  ──►  双击�
 
 | 用途 | 要求 |
 |---|---|
-| 转换（核心功能） | Python ≥ 3.11，**不需要** pip 装任何运行时依赖 |
+| 转换（核心功能） | Python ≥ 3.12，**不需要** pip 装任何运行时依赖 |
 | 文字矢量化（默认模式） | 需要 `fontTools` + `brotli`（构建期依赖，产物仍然零依赖） |
-| 导出 PDF / 抓图比对 | 本机 Chrome 或 `chrome-headless-shell` |
+| 导出 PDF | 本机 Chrome 或 `chrome-headless-shell` |
+| 像素级视觉比对（`visual-diff`） | 本机 **LibreOffice** + `pillow` + `pymupdf`（装 `visual` 档） |
 | 重新导入开源字体 | Node.js ≥ 18 + npm（一次性，之后不再需要） |
 
 ## 安装
@@ -35,8 +37,9 @@ pptx  ──►  ppt2web convert  ──►  out/index.html  ──►  双击�
 |---|---|---|
 | `dependencies`（主依赖） | **空** —— 只用标准库解析 OOXML | 始终 |
 | `text-vector` | `fonttools` + `brotli` | 用默认的矢量文字模式时 |
+| `visual` | `pillow` + `pymupdf` | 跑 `visual-diff` 像素级比对时（本机还得有 LibreOffice） |
 | `media` | `torch`(CPU) / `transformers` / `kokoro-onnx` / `soundfile` / `numpy` / `onnxruntime` | 只在跑本地 TTS、BGM 生成时需要（**ppt2web 本身用不到**） |
-| `dev` | `ppt2web[text-vector]` | 跑单元测试时 |
+| `dev` | `ppt2web[text-vector,visual]` | 跑单元测试时 |
 
 ### 方式一：用仓库里已有的 `.venv`（推荐）
 
@@ -51,6 +54,8 @@ uv venv .venv
 uv pip install --python .venv/bin/python -e ".[text-vector]"
 # 需要本地语音/音乐时再加上 media 档（会拉 ~200MB 的 CPU 版 torch）
 uv pip install --python .venv/bin/python -e ".[text-vector,media]"
+# 需要跑 visual-diff 时加上 visual 档（另外还要本机有 LibreOffice）
+uv pip install --python .venv/bin/python -e ".[text-vector,visual]"
 ```
 
 ### 方式三：pip
@@ -111,7 +116,7 @@ python -m ppt2web <command>
 | `python -m ppt2web inspect <pptx>` | 结构探针：形状/几何/动画行为/字体/媒体清单 + 风险提示 |
 | `python -m ppt2web verify <out/> [--pptx 源.pptx]` | 结构化断言（硬门禁）；带 `--pptx` 会回读源文件做端到端比对 |
 | `python -m ppt2web export-pdf <out/> -o deck.pdf` | 用本机 Chrome 打印成逐页对齐的 PDF |
-| `python -m ppt2web visual-diff <out/> --pptx 源.pptx` | 像素级视觉比对（探索工具，不做门禁） |
+| `python -m ppt2web visual-diff <out/> --pptx 源.pptx` | 像素级视觉比对（探索工具，不做门禁；需 `visual` 档 + 本机 LibreOffice） |
 
 拿不准一个 PPT 能不能转、难度多大，**先跑 `inspect`**。
 
@@ -145,7 +150,7 @@ node tools/shoot.js --deck out/ --slides 002 --anim --freeze 250 --out /tmp/shot
 
 ### 放映快捷键
 
-`←` `→` 翻页 · `空格` 推进动画 · `Home` `End` 首末页 · `F` 全屏 · `O` 显示/隐藏控件栏
+`←` `→`（或 `PgUp` `PgDn`）翻页 · `空格` 推进动画 · `Home` `End` 首末页 · `F` 全屏 · `O` 显示/隐藏控件栏
 
 ### 产物结构
 
@@ -161,6 +166,7 @@ out/
   assets/
     ppt2web.css       共享样式 + 内嵌字体的 @font-face（仅 HTML 文字模式）
     image1.png…       位图（原样字节）
+    media1.mp3…       音频/视频素材（原样字节，供命令型动画触发播放）
     fonts/*.woff2     按实际用到的字符子集化的字体（仅 HTML 文字模式）
 ```
 
@@ -172,7 +178,7 @@ out/
 python -m ppt2web verify out/ --pptx 某文件.pptx
 ```
 
-断言分三层：
+验收分三层 —— ①② 由 `verify` 跑（硬门禁），③ 是独立工具：
 
 - **① 结构级** —— 媒体字节 SHA-256 一致、**源里引用到的媒体一个都不能少**、
   每页图元数一致、动画组数/行为数一致且目标不断链、
@@ -186,7 +192,7 @@ python -m ppt2web verify out/ --pptx 某文件.pptx
 
 版式漂移多少、行高像不像，最终还是要**目视**：转换完用浏览器打开，和原稿人工比一遍。
 
-> 页面转场和音频**已实现**（3D 转场是近似实现）。此前它们是**静默丢失**的 ——
+> 页面转场和音频**已实现**。此前它们是**静默丢失**的 ——
 > `verify` 报"全部通过"，但 report 里连一条提示都没有。现在丢失 = 硬失败。
 
 ---
@@ -195,26 +201,25 @@ python -m ppt2web verify out/ --pptx 某文件.pptx
 
 ```bash
 # 单元测试（标准库 unittest，零额外依赖）
-python -m unittest discover -s tests -t .
+python -m unittest discover -s tests -t .      # 121 个用例
 
 # 抓动画中间帧（定格在指定毫秒，截图可复现），用来和原稿目视比对
 node tools/shoot.js --deck out/ --slides 002 --anim --freeze 250 --out /tmp/shots
-
-# 前端冒烟测试（Lightpanda 无头浏览器，验证 DOM/JS/资源加载）
-# 见 browser-test/SKILL.md
 ```
 
 设计文档：
 
 - [`docs/plans/2026-11-15-ppt2web-plan.md`](./docs/plans/2026-11-15-ppt2web-plan.md) —— 总体设计与 12 轮决策台账
 - [`docs/plans/2026-11-16-ppt2web-phase1.md`](./docs/plans/2026-11-16-ppt2web-phase1.md) —— 阶段 1：文字矢量化与保真补齐
+- [`docs/plans/2026-11-17-ppt2web-phase2-fidelity.md`](./docs/plans/2026-11-17-ppt2web-phase2-fidelity.md) —— 阶段 2：保真补齐 —— 让 `verify` 说真话
 
 ## 已知限制
 
 - **SmartArt**（`a:graphicData` 的 diagram）仍只渲染占位框
 - 图表只支持**柱状图 / 甜甜圈 / 饼图**；折线、散点、面积、堆积、双坐标轴、图例、标题会明确降级成占位框（并在 `report.html` 注明原因），而不是画个"像但不对"的图
-- 表格的**合并单元格**暂不支持
-- 音频（`p:audio` / mediacall 触发）暂未支持
+- 表格的**合并单元格**（`gridSpan` / `vMerge`）暂不支持 —— 整个表格**降级成占位框**（并保留无障碍文字层），verify 只记警告、不算失败
+- **音频**已经能还原（`<p:cmd cmd="playFrom()">` 触发，带音量与循环设置），但受浏览器自动播放策略限制：没有用户手势时浏览器会拦下自动播放，元素仍在，用户点一下就能播
+- **3D 转场**（`flythrough` 之类）是近似实现；2D 转场（淡入淡出、擦除、推入等）按源行为还原
 - Wingdings 等符号字体会退化成普通字符
 - 不支持 `.ppt`（2007 前二进制）与 `.odp`（需要 LibreOffice）
 
@@ -226,7 +231,6 @@ ppt2web/          转换器本体（parse 解析 OOXML → render 渲染 → run
   runtime/        播放器 JS（runtime.js / slide.js）
 tests/            单元测试（标准库 unittest）
 tools/            import_fonts.py（字体导入）、shoot.js（抓图）
-browser-test/     Lightpanda 无头浏览器冒烟测试 skill
 docs/plans/       设计文档
 out/ out_v2/      转换产物示例（已被 .gitignore 排除）
 ```
